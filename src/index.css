@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+:root {
+  --bg-color: #fafcfb;
+  --panel-bg: rgba(255, 255, 255, 0.88);
+  --card-bg: rgba(255, 255, 255, 0.88);
+  --border-color: rgba(0, 0, 0, 0.08);
+  --text-color: #0f172a;
+  --text-muted: #475569;
+  --cyan: #06b6d4;
+  --purple: #8b5cf6;
+  --emerald: #10b981;
+  --rose: #ec4899;
+  --amber: #f59e0b;
+  --blue: #3b82f6;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* Hide Scrollbar Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Ambient Rich Multi-Color Wallpaper Mesh */
+.warm-mesh-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: 
+    radial-gradient(circle at 12% 15%, rgba(6, 182, 212, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 88% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 50% 65%, rgba(236, 72, 153, 0.09) 0%, transparent 45%),
+    radial-gradient(circle at 25% 85%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+  animation: meshPulse 14s ease-in-out infinite alternate;
+}
+
+@keyframes meshPulse {
+  0% { transform: scale(1) translateY(0); opacity: 0.9; }
+  50% { transform: scale(1.03) translateY(-4px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 0.9; }
+}
+
+/* Vibrant Multi-Color Flowing Gradient Text */
+.text-gradient-vibrant {
+  background: linear-gradient(135deg, #06b6d4 0%, #8b5cf6 32%, #ec4899 65%, #f59e0b 88%, #10b981 100%);
+  background-size: 250% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: vibrantFlow 8s linear infinite;
+}
+
+@keyframes vibrantFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Glass Panels */
+.glass-panel {
+  background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel:hover {
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow: 0 12px 36px rgba(139, 92, 246, 0.12);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+/* Typography Classes */
+.font-space { font-family: 'Space Grotesk', sans-serif; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Tilt Hover Micro-Effect */
+.tilt-card {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.tilt-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Custom Scrollbar */
+.code-scroll::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+
+.code-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.code-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.code-scroll::-webkit-scrollbar-thumb:hover {
+  background: #8b5cf6;
+}
