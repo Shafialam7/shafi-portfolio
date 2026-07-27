@@ -1,9 +1,15 @@
 // server/db.js
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const os = require('os');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const { Redis } = require('@upstash/redis');
+
+let sqlite3 = null;
+try {
+  sqlite3 = require('sqlite3').verbose();
+} catch (e) {
+  console.log('ℹ️ Running in Serverless mode without native sqlite3 binary');
+}
 
 // Dedicated persistent Cloud Store URL for Netlify & Production Deployment
 const CLOUD_STORE_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fa584827735e3';
@@ -26,25 +32,23 @@ if (supabaseUrl && supabaseKey) {
   redis = new Redis({ url: upstashUrl, token: upstashToken });
 }
 
-// Fallback Local SQLite DB setup
-const isServerless = process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.CONTEXT || true;
-const dbPath = path.join(os.tmpdir(), 'messages.db');
-
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (!err) console.log('✅ SQLite DB initialized at', dbPath);
-});
-
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      client_id TEXT NOT NULL,
-      direction TEXT CHECK(direction IN ('query','reply')) NOT NULL,
-      content TEXT NOT NULL,
-      timestamp INTEGER NOT NULL
-    )
-  `);
-});
+// Fallback Local SQLite DB setup if sqlite3 module is available
+let db = null;
+if (sqlite3) {
+  const dbPath = path.join(os.tmpdir(), 'messages.db');
+  db = new sqlite3.Database(dbPath, () => {});
+  db.serialize(() => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        direction TEXT CHECK(direction IN ('query','reply')) NOT NULL,
+        content TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      )
+    `);
+  });
+}
 
 // Helper for Persistent Cloud Storage
 async function getCloudStoreMessages() {
@@ -111,18 +115,20 @@ async function addMessage({ clientId, direction, content }) {
     return newMsg.id;
   }
 
-  // 3. Persistent Cloud Store (Active for Netlify and Web Deployment)
+  // 3. Persistent Cloud Store (Active for Netlify Functions)
   const msgs = await getCloudStoreMessages();
   const newMsg = { id: Date.now(), client_id: clientId, direction, content, timestamp };
   msgs.push(newMsg);
   await saveCloudStoreMessages(msgs);
 
-  // Sync to local SQLite as local backup
-  db.run(
-    `INSERT INTO messages (client_id, direction, content, timestamp) VALUES (?, ?, ?, ?)`,
-    [clientId, direction, content, timestamp],
-    () => {}
-  );
+  // Sync to local SQLite as local backup if available
+  if (db) {
+    db.run(
+      `INSERT INTO messages (client_id, direction, content, timestamp) VALUES (?, ?, ?, ?)`,
+      [clientId, direction, content, timestamp],
+      () => {}
+    );
+  }
 
   return newMsg.id;
 }
@@ -153,11 +159,15 @@ async function getMessagesByClient(clientId) {
       .sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  return new Promise((resolve) => {
-    db.all(`SELECT * FROM messages WHERE client_id = ? ORDER BY timestamp ASC`, [clientId], (err, rows) => {
-      resolve(rows || []);
+  if (db) {
+    return new Promise((resolve) => {
+      db.all(`SELECT * FROM messages WHERE client_id = ? ORDER BY timestamp ASC`, [clientId], (err, rows) => {
+        resolve(rows || []);
+      });
     });
-  });
+  }
+
+  return [];
 }
 
 async function getAllClients() {
@@ -224,24 +234,28 @@ async function getAllClients() {
     return Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
   }
 
-  return new Promise((resolve) => {
-    db.all(
-      `SELECT
-         client_id,
-         MAX(timestamp) AS last_timestamp,
-         (SELECT content FROM messages m2
-          WHERE m2.client_id = m1.client_id
-          ORDER BY m2.timestamp DESC LIMIT 1) AS last_message,
-         SUM(CASE WHEN direction = 'query' THEN 1 ELSE 0 END) AS unread_count
-       FROM messages m1
-       GROUP BY client_id
-       ORDER BY last_timestamp DESC`,
-      [],
-      (err, rows) => {
-        resolve(rows || []);
-      }
-    );
-  });
+  if (db) {
+    return new Promise((resolve) => {
+      db.all(
+        `SELECT
+           client_id,
+           MAX(timestamp) AS last_timestamp,
+           (SELECT content FROM messages m2
+            WHERE m2.client_id = m1.client_id
+            ORDER BY m2.timestamp DESC LIMIT 1) AS last_message,
+           SUM(CASE WHEN direction = 'query' THEN 1 ELSE 0 END) AS unread_count
+         FROM messages m1
+         GROUP BY client_id
+         ORDER BY last_timestamp DESC`,
+        [],
+        (err, rows) => {
+          resolve(rows || []);
+        }
+      );
+    });
+  }
+
+  return [];
 }
 
 async function deleteClient(clientId) {
@@ -262,7 +276,7 @@ async function deleteClient(clientId) {
   msgs = msgs.filter((m) => m.client_id !== clientId);
   await saveCloudStoreMessages(msgs);
 
-  db.run(`DELETE FROM messages WHERE client_id = ?`, [clientId], () => {});
+  if (db) db.run(`DELETE FROM messages WHERE client_id = ?`, [clientId], () => {});
   return true;
 }
 
@@ -284,7 +298,7 @@ async function deleteMessage(messageId) {
   msgs = msgs.filter((m) => m.id != messageId);
   await saveCloudStoreMessages(msgs);
 
-  db.run(`DELETE FROM messages WHERE id = ?`, [messageId], () => {});
+  if (db) db.run(`DELETE FROM messages WHERE id = ?`, [messageId], () => {});
   return true;
 }
 
