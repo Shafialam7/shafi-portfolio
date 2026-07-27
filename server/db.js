@@ -5,10 +5,10 @@ const os = require('os');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const { Redis } = require('@upstash/redis');
 
-// Dedicated persistent Cloud Store ID for Shafi Portfolio Netlify Deployment
+// Dedicated persistent Cloud Store URL for Netlify & Production Deployment
 const CLOUD_STORE_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fa584827735e3';
 
-// Detect optional Cloud DB provider environment variables
+// Detect Cloud DB provider environment variables if configured
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -27,8 +27,8 @@ if (supabaseUrl && supabaseKey) {
 }
 
 // Fallback Local SQLite DB setup
-const isNetlify = process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME;
-const dbPath = isNetlify ? path.join(os.tmpdir(), 'messages.db') : path.resolve(__dirname, 'messages.db');
+const isServerless = process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.CONTEXT || true;
+const dbPath = path.join(os.tmpdir(), 'messages.db');
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (!err) console.log('✅ SQLite DB initialized at', dbPath);
@@ -46,7 +46,7 @@ db.serialize(() => {
   `);
 });
 
-// Helper for Zero-Config Persistent Cloud Storage
+// Helper for Persistent Cloud Storage
 async function getCloudStoreMessages() {
   try {
     const res = await fetch(CLOUD_STORE_URL);
@@ -111,34 +111,20 @@ async function addMessage({ clientId, direction, content }) {
     return newMsg.id;
   }
 
-  // 3. Automated Netlify Serverless Cloud Storage
-  if (isNetlify) {
-    const msgs = await getCloudStoreMessages();
-    const newMsg = { id: Date.now(), client_id: clientId, direction, content, timestamp };
-    msgs.push(newMsg);
-    await saveCloudStoreMessages(msgs);
-    return newMsg.id;
-  }
+  // 3. Persistent Cloud Store (Active for Netlify and Web Deployment)
+  const msgs = await getCloudStoreMessages();
+  const newMsg = { id: Date.now(), client_id: clientId, direction, content, timestamp };
+  msgs.push(newMsg);
+  await saveCloudStoreMessages(msgs);
 
-  // 4. Local SQLite (Sync with Cloud Store as backup)
-  const newId = await new Promise((resolve, reject) => {
-    db.run(
-      `INSERT INTO messages (client_id, direction, content, timestamp) VALUES (?, ?, ?, ?)`,
-      [clientId, direction, content, timestamp],
-      function (err) {
-        if (err) reject(err);
-        else resolve(this.lastID);
-      }
-    );
-  });
+  // Sync to local SQLite as local backup
+  db.run(
+    `INSERT INTO messages (client_id, direction, content, timestamp) VALUES (?, ?, ?, ?)`,
+    [clientId, direction, content, timestamp],
+    () => {}
+  );
 
-  // Sync to Cloud Store in background
-  getCloudStoreMessages().then((msgs) => {
-    msgs.push({ id: newId, client_id: clientId, direction, content, timestamp });
-    saveCloudStoreMessages(msgs);
-  }).catch(() => {});
-
-  return newId;
+  return newMsg.id;
 }
 
 async function getMessagesByClient(clientId) {
@@ -159,17 +145,17 @@ async function getMessagesByClient(clientId) {
       .sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  if (isNetlify) {
-    const msgs = await getCloudStoreMessages();
+  // Always check Persistent Cloud Store
+  const msgs = await getCloudStoreMessages();
+  if (msgs && msgs.length > 0) {
     return msgs
       .filter((m) => m.client_id === clientId)
       .sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     db.all(`SELECT * FROM messages WHERE client_id = ? ORDER BY timestamp ASC`, [clientId], (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows || []);
+      resolve(rows || []);
     });
   });
 }
@@ -218,8 +204,9 @@ async function getAllClients() {
     return Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
   }
 
-  if (isNetlify) {
-    const msgs = await getCloudStoreMessages();
+  // Fetch from Persistent Cloud Store
+  const msgs = await getCloudStoreMessages();
+  if (msgs && msgs.length > 0) {
     const clientMap = {};
     msgs.sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
       if (!clientMap[m.client_id]) {
@@ -237,7 +224,7 @@ async function getAllClients() {
     return Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     db.all(
       `SELECT
          client_id,
@@ -251,8 +238,7 @@ async function getAllClients() {
        ORDER BY last_timestamp DESC`,
       [],
       (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows || []);
+        resolve(rows || []);
       }
     );
   });
@@ -272,19 +258,12 @@ async function deleteClient(clientId) {
     return true;
   }
 
-  if (isNetlify) {
-    let msgs = await getCloudStoreMessages();
-    msgs = msgs.filter((m) => m.client_id !== clientId);
-    await saveCloudStoreMessages(msgs);
-    return true;
-  }
+  let msgs = await getCloudStoreMessages();
+  msgs = msgs.filter((m) => m.client_id !== clientId);
+  await saveCloudStoreMessages(msgs);
 
-  return new Promise((resolve, reject) => {
-    db.run(`DELETE FROM messages WHERE client_id = ?`, [clientId], function (err) {
-      if (err) reject(err);
-      else resolve(this.changes);
-    });
-  });
+  db.run(`DELETE FROM messages WHERE client_id = ?`, [clientId], () => {});
+  return true;
 }
 
 async function deleteMessage(messageId) {
@@ -301,19 +280,12 @@ async function deleteMessage(messageId) {
     return true;
   }
 
-  if (isNetlify) {
-    let msgs = await getCloudStoreMessages();
-    msgs = msgs.filter((m) => m.id != messageId);
-    await saveCloudStoreMessages(msgs);
-    return true;
-  }
+  let msgs = await getCloudStoreMessages();
+  msgs = msgs.filter((m) => m.id != messageId);
+  await saveCloudStoreMessages(msgs);
 
-  return new Promise((resolve, reject) => {
-    db.run(`DELETE FROM messages WHERE id = ?`, [messageId], function (err) {
-      if (err) reject(err);
-      else resolve(this.changes);
-    });
-  });
+  db.run(`DELETE FROM messages WHERE id = ?`, [messageId], () => {});
+  return true;
 }
 
 module.exports = {
