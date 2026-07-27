@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatbot Command Center — Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: rgba(15, 23, 42, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #06b6d4;
+      --accent-purple: #8b5cf6;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(6, 182, 212, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 85% 15%, rgba(139, 92, 246, 0.14) 0%, transparent 45%),
+        radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
+    }
+
+    /* Auth Overlay Modal */
+    #auth-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(9, 13, 22, 0.88);
+      backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .auth-card {
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 30px rgba(139, 92, 246, 0.15);
+      border-radius: 1rem;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+
+    .auth-icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 1.25rem;
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(139, 92, 246, 0.2));
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-cyan);
+      font-size: 1.5rem;
+    }
+
+    .auth-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .auth-subtitle {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .auth-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .input-field {
+      width: 100%;
+      background: rgba(2, 6, 23, 0.6);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.625rem;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent-purple);
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      color: #fff;
+      font-weight: 600;
+      border: none;
+      border-radius: 0.625rem;
+      padding: 0.75rem 1.25rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: opacity 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+
+    .auth-error {
+      color: var(--accent-rose);
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    /* Main App Layout */
+    .app-header {
+      height: 64px;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      z-index: 10;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-badge {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: -0.01em;
+    }
+
+    .header-stats {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      background: rgba(2, 6, 23, 0.4);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .stat-pill strong {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fda4af;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      border-radius: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .btn-danger:hover {
+      background: rgba(244, 63, 94, 0.3);
+      color: #fff;
+    }
+
+    .app-body {
+      flex: 1;
+      display: flex;
+      height: calc(100vh - 64px);
+      overflow: hidden;
+    }
+
+    /* Sidebar - Visitor List */
+    .sidebar {
+      width: 340px;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(12px);
+      border-right: 1px solid var(--panel-border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-search {
+      padding: 1rem;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(2, 6, 23, 0.5);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .client-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .client-item {
+      padding: 0.85rem 1rem;
+      border-radius: 0.625rem;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.02);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      position: relative;
+    }
+
+    .client-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .client-item.active {
+      background: rgba(139, 92, 246, 0.12);
+      border-color: rgba(139, 92, 246, 0.3);
+    }
+
+    .client-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .client-id-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+    }
+
+    .client-time {
+      font-size: 0.725rem;
+      color: var(--text-dim);
+    }
+
+    .client-last-msg {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 1.5rem;
+    }
+
+    .client-delete-btn {
+      position: absolute;
+      right: 0.75rem;
+      bottom: 0.75rem;
+      opacity: 0;
+      transition: opacity 0.2s;
+      background: rgba(244, 63, 94, 0.2);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: #fda4af;
+      border-radius: 0.35rem;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    .client-item:hover .client-delete-btn {
+      opacity: 1;
+    }
+
+    .client-delete-btn:hover {
+      background: rgba(244, 63, 94, 0.5);
+      color: #fff;
+    }
+
+    /* Main Chat Workspace */
+    .chat-workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: rgba(9, 13, 22, 0.4);
+    }
+
+    .chat-header {
+      height: 60px;
+      padding: 0 1.5rem;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .active-client-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .active-client-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .active-client-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .active-client-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .active-client-status {
+      font-size: 0.75rem;
+      color: var(--accent-emerald);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .active-client-status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+    }
+
+    .chat-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .msg-bubble-wrap {
+      display: flex;
+      flex-direction: column;
+      max-width: 70%;
+      position: relative;
+    }
+
+    .msg-bubble-wrap.query {
+      align-self: flex-start;
+    }
+
+    .msg-bubble-wrap.reply {
+      align-self: flex-end;
+    }
+
+    .msg-author {
+      font-size: 0.725rem;
+      color: var(--text-dim);
+      margin-bottom: 0.25rem;
+      padding: 0 0.25rem;
+    }
+
+    .msg-bubble-wrap.reply .msg-author {
+      text-align: right;
+    }
+
+    .msg-bubble {
+      padding: 0.85rem 1.15rem;
+      border-radius: 1rem;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      word-break: break-word;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      position: relative;
+    }
+
+    .msg-bubble-wrap.query .msg-bubble {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      color: var(--text-main);
+      border-top-left-radius: 0.2rem;
+    }
+
+    .msg-bubble-wrap.reply .msg-bubble {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.85), rgba(6, 182, 212, 0.85));
+      color: #ffffff;
+      border-top-right-radius: 0.2rem;
+    }
+
+    .msg-del-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      background: rgba(0, 0, 0, 0.4);
+      border: none;
+      color: #f43f5e;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .msg-bubble:hover .msg-del-btn {
+      opacity: 1;
+    }
+
+    .msg-time {
+      font-size: 0.675rem;
+      opacity: 0.7;
+      margin-top: 0.35rem;
+      display: block;
+      text-align: right;
+    }
+
+    .quick-replies {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.5rem 1.5rem;
+      overflow-x: auto;
+      background: rgba(15, 23, 42, 0.4);
+      border-top: 1px solid var(--panel-border);
+    }
+
+    .quick-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--panel-border);
+      color: var(--text-muted);
+      border-radius: 9999px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .quick-pill:hover {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: var(--accent-purple);
+      color: #fff;
+    }
+
+    .chat-input-area {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--panel-border);
+      background: rgba(15, 23, 42, 0.6);
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .chat-input-area input {
+      flex: 1;
+      background: rgba(2, 6, 23, 0.6);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.625rem;
+      padding: 0.85rem 1rem;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .chat-input-area input:focus {
+      border-color: var(--accent-purple);
+    }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      gap: 0.75rem;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed var(--panel-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+    }
+
+    /* Toast Alert */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--accent-cyan);
+      color: var(--text-main);
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      font-size: 0.85rem;
+      display: none;
+      z-index: 2000;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-mesh"></div>
+
+  <!-- Toast Alert -->
+  <div id="toast"></div>
+
+  <!-- Auth Gate Overlay -->
+  <div id="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-icon">🛡️</div>
+      <h2 class="auth-title">Owner Access</h2>
+      <p class="auth-subtitle">Enter your secret owner token to access the Chatbot Command Center</p>
+      <form id="auth-form" class="auth-input-group">
+        <input type="password" id="token-input" class="input-field" placeholder="Enter OWNER_TOKEN..." required autofocus />
+        <button type="submit" class="btn-primary">Unlock Dashboard →</button>
+      </form>
+      <div id="auth-error" class="auth-error">Invalid owner token. Access denied.</div>
+    </div>
+  </div>
+
+  <!-- Main Admin Interface -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-badge">⚡</div>
+      <span class="brand-title">Chatbot Command Center</span>
+    </div>
+
+    <div class="header-stats">
+      <div class="stat-pill">
+        <span>Visitors:</span>
+        <strong id="stat-total-clients">0</strong>
+      </div>
+      <div class="stat-pill">
+        <span>Queries Received:</span>
+        <strong id="stat-total-queries">0</strong>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="btn-refresh" class="btn-secondary" title="Refresh Live Feed">
+        🔄 <span>Refresh</span>
+      </button>
+      <button id="btn-logout" class="btn-secondary" title="Lock Dashboard">
+        🔒 <span>Lock</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="app-body">
+    <!-- Sidebar / Visitor List -->
+    <aside class="sidebar">
+      <div class="sidebar-search">
+        <input type="text" id="client-search" class="search-input" placeholder="Search by client ID..." />
+      </div>
+      <div id="client-list" class="client-list">
+        <!-- Rendered client items -->
+      </div>
+    </aside>
+
+    <!-- Active Conversation View -->
+    <section class="chat-workspace">
+      <div id="chat-header" class="chat-header" style="display: none;">
+        <div class="active-client-info">
+          <div class="active-client-avatar">👤</div>
+          <div class="active-client-details">
+            <span id="active-client-id" class="active-client-id">--</span>
+            <span class="active-client-status">Active Visitor Session</span>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button id="btn-copy-id" class="btn-secondary" style="font-size: 0.75rem;">📋 Copy ID</button>
+          <button id="btn-export-chat" class="btn-secondary" style="font-size: 0.75rem;">📥 Export</button>
+          <button id="btn-delete-conversation" class="btn-danger" style="font-size: 0.75rem;">🗑️ Delete Thread</button>
+        </div>
+      </div>
+
+      <div id="chat-messages" class="chat-messages">
+        <div class="empty-state">
+          <div class="empty-icon">💬</div>
+          <h3>No Conversation Selected</h3>
+          <p>Select a visitor from the left sidebar to view their message history and reply.</p>
+        </div>
+      </div>
+
+      <!-- Quick Reply Templates -->
+      <div id="quick-replies" class="quick-replies" style="display: none;">
+        <button class="quick-pill" onclick="insertQuickReply('Thanks for reaching out! I will get back to you shortly. 📱')">⚡ Thanks! Will reply soon</button>
+        <button class="quick-pill" onclick="insertQuickReply('Project pricing starts at competitive custom rates. Let us schedule a quick call!')">💰 Pricing Info</button>
+        <button class="quick-pill" onclick="insertQuickReply('I am available for full-stack engineering & freelance projects!')">🟢 Available for Hire</button>
+        <button class="quick-pill" onclick="insertQuickReply('Feel free to WhatsApp me directly at +91 79957 81051 or email devbyshafi@gmail.com!')">📞 WhatsApp Contact</button>
+      </div>
+
+      <form id="reply-form" class="chat-input-area" style="display: none;">
+        <input type="text" id="reply-input" placeholder="Type a response to visitor..." autocomplete="off" />
+        <button type="submit" class="btn-primary">Send Reply 🚀</button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const API_BASE = window.location.origin + '/api';
+    let ownerToken = sessionStorage.getItem('owner_token') || '';
+    let clientsData = [];
+    let activeClientId = null;
+    let pollInterval = null;
+
+    const authOverlay = document.getElementById('auth-overlay');
+    const authForm = document.getElementById('auth-form');
+    const tokenInput = document.getElementById('token-input');
+    const authError = document.getElementById('auth-error');
+    const clientListEl = document.getElementById('client-list');
+    const chatHeaderEl = document.getElementById('chat-header');
+    const chatMessagesEl = document.getElementById('chat-messages');
+    const quickRepliesEl = document.getElementById('quick-replies');
+    const replyFormEl = document.getElementById('reply-form');
+    const replyInputEl = document.getElementById('reply-input');
+    const activeClientIdEl = document.getElementById('active-client-id');
+    const clientSearchEl = document.getElementById('client-search');
+    const btnRefresh = document.getElementById('btn-refresh');
+    const btnLogout = document.getElementById('btn-logout');
+    const btnCopyId = document.getElementById('btn-copy-id');
+    const btnExportChat = document.getElementById('btn-export-chat');
+    const btnDeleteConversation = document.getElementById('btn-delete-conversation');
+
+    const statTotalClients = document.getElementById('stat-total-clients');
+    const statTotalQueries = document.getElementById('stat-total-queries');
+
+    if (ownerToken) {
+      verifyAndLoad();
+    }
+
+    authForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      ownerToken = tokenInput.value.trim();
+      verifyAndLoad();
+    });
+
+    async function verifyAndLoad() {
+      try {
+        const res = await fetch(`${API_BASE}/clients`, {
+          headers: { 'X-Owner-Token': ownerToken }
+        });
+        if (res.ok) {
+          sessionStorage.setItem('owner_token', ownerToken);
+          authOverlay.style.display = 'none';
+          loadClients();
+          startPolling();
+        } else {
+          showAuthError();
+        }
+      } catch (err) {
+        showAuthError();
+      }
+    }
+
+    function showAuthError() {
+      authError.style.display = 'block';
+      sessionStorage.removeItem('owner_token');
+      ownerToken = '';
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 3000);
+    }
+
+    btnLogout.addEventListener('click', () => {
+      sessionStorage.removeItem('owner_token');
+      location.reload();
+    });
+
+    btnRefresh.addEventListener('click', () => {
+      loadClients();
+      if (activeClientId) loadHistory(activeClientId);
+      showToast('Data refreshed');
+    });
+
+    clientSearchEl.addEventListener('input', renderClientList);
+
+    btnCopyId.addEventListener('click', () => {
+      if (activeClientId) {
+        navigator.clipboard.writeText(activeClientId);
+        btnCopyId.innerText = '✅ Copied!';
+        setTimeout(() => btnCopyId.innerText = '📋 Copy ID', 2000);
+      }
+    });
+
+    btnDeleteConversation.addEventListener('click', async () => {
+      if (!activeClientId) return;
+      if (confirm(`Are you sure you want to delete all messages for ${activeClientId}?`)) {
+        await deleteClient(activeClientId);
+      }
+    });
+
+    btnExportChat.addEventListener('click', async () => {
+      if (!activeClientId) return;
+      try {
+        const res = await fetch(`${API_BASE}/history/${activeClientId}`);
+        const data = await res.json();
+        const text = (data.messages || []).map(m => `[${formatTime(m.timestamp)}] ${m.direction === 'query' ? 'Visitor' : 'Owner'}: ${m.content}`).join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${activeClientId}_chat.txt`;
+        a.click();
+        showToast('Exported chat history');
+      } catch (err) {
+        console.error('Export failed:', err);
+      }
+    });
+
+    async function loadClients() {
+      try {
+        const res = await fetch(`${API_BASE}/clients`, {
+          headers: { 'X-Owner-Token': ownerToken }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        clientsData = data.clients || [];
+        
+        statTotalClients.innerText = clientsData.length;
+        const totalQueries = clientsData.reduce((acc, c) => acc + (c.unread_count || 0), 0);
+        statTotalQueries.innerText = totalQueries;
+
+        renderClientList();
+      } catch (err) {
+        console.error('Error fetching clients:', err);
+      }
+    }
+
+    function renderClientList() {
+      const query = clientSearchEl.value.toLowerCase().trim();
+      const filtered = clientsData.filter(c => c.client_id.toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        clientListEl.innerHTML = `
+          <div style="padding: 1.5rem; text-align: center; color: var(--text-dim); font-size: 0.85rem;">
+            No visitors found
+          </div>
+        `;
+        return;
+      }
+
+      clientListEl.innerHTML = filtered.map(c => {
+        const isActive = c.client_id === activeClientId;
+        const dateStr = formatTime(c.last_timestamp);
+        return `
+          <div class="client-item ${isActive ? 'active' : ''}" onclick="selectClient('${c.client_id}')">
+            <div class="client-item-header">
+              <span class="client-id-badge">${escapeHtml(c.client_id)}</span>
+              <span class="client-time">${dateStr}</span>
+            </div>
+            <div class="client-last-msg">${escapeHtml(c.last_message || 'No messages')}</div>
+            <button class="client-delete-btn" onclick="event.stopPropagation(); deleteClient('${c.client_id}')" title="Delete conversation">🗑️</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function deleteClient(clientId) {
+      if (!confirm(`Delete conversation for ${clientId}?`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/clients/${clientId}`, {
+          method: 'DELETE',
+          headers: { 'X-Owner-Token': ownerToken }
+        });
+        if (res.ok) {
+          showToast(`Deleted ${clientId}`);
+          if (activeClientId === clientId) {
+            activeClientId = null;
+            chatHeaderEl.style.display = 'none';
+            quickRepliesEl.style.display = 'none';
+            replyFormEl.style.display = 'none';
+            chatMessagesEl.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-icon">💬</div>
+                <h3>No Conversation Selected</h3>
+                <p>Select a visitor from the left sidebar to view their message history.</p>
+              </div>
+            `;
+          }
+          await loadClients();
+        }
+      } catch (err) {
+        console.error('Failed to delete client:', err);
+      }
+    }
+
+    async function deleteMessage(messageId) {
+      if (!confirm('Delete this specific message?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/messages/${messageId}`, {
+          method: 'DELETE',
+          headers: { 'X-Owner-Token': ownerToken }
+        });
+        if (res.ok) {
+          showToast('Message deleted');
+          if (activeClientId) loadHistory(activeClientId);
+          loadClients();
+        }
+      } catch (err) {
+        console.error('Failed to delete message:', err);
+      }
+    }
+
+    async function selectClient(clientId) {
+      activeClientId = clientId;
+      renderClientList();
+      chatHeaderEl.style.display = 'flex';
+      quickRepliesEl.style.display = 'flex';
+      replyFormEl.style.display = 'flex';
+      activeClientIdEl.innerText = clientId;
+      await loadHistory(clientId);
+    }
+
+    async function loadHistory(clientId) {
+      try {
+        const res = await fetch(`${API_BASE}/history/${clientId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const messages = data.messages || [];
+
+        if (messages.length === 0) {
+          chatMessagesEl.innerHTML = `
+            <div class="empty-state">
+              <p>No message history found for this client.</p>
+            </div>
+          `;
+          return;
+        }
+
+        chatMessagesEl.innerHTML = messages.map(m => {
+          const isQuery = m.direction === 'query';
+          const author = isQuery ? `Visitor (${m.client_id})` : 'You (Owner)';
+          return `
+            <div class="msg-bubble-wrap ${isQuery ? 'query' : 'reply'}">
+              <div class="msg-author">${author}</div>
+              <div class="msg-bubble">
+                <button class="msg-del-btn" onclick="deleteMessage(${m.id})" title="Delete message">✕</button>
+                ${escapeHtml(m.content)}
+                <span class="msg-time">${formatTime(m.timestamp)}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+      } catch (err) {
+        console.error('Error loading history:', err);
+      }
+    }
+
+    function insertQuickReply(text) {
+      replyInputEl.value = text;
+      replyInputEl.focus();
+    }
+
+    replyFormEl.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const reply = replyInputEl.value.trim();
+      if (!reply || !activeClientId) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/reply`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Owner-Token': ownerToken
+          },
+          body: JSON.stringify({ clientId: activeClientId, reply })
+        });
+
+        if (res.ok) {
+          replyInputEl.value = '';
+          showToast('Reply sent!');
+          await loadHistory(activeClientId);
+          await loadClients();
+        } else {
+          alert('Failed to send reply. Check connection or token.');
+        }
+      } catch (err) {
+        console.error('Error sending reply:', err);
+      }
+    });
+
+    function startPolling() {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(() => {
+        loadClients();
+        if (activeClientId) loadHistory(activeClientId);
+      }, 5000);
+    }
+
+    function formatTime(timestamp) {
+      if (!timestamp) return '';
+      const d = new Date(Number(timestamp));
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>

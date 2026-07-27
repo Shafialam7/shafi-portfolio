@@ -1,8 +1,11 @@
 // server/db.js
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const os = require('os');
 
-const dbPath = path.resolve(__dirname, 'messages.db');
+const isNetlify = process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME;
+const dbPath = isNetlify ? path.join(os.tmpdir(), 'messages.db') : path.resolve(__dirname, 'messages.db');
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Failed to open DB:', err);
