@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a0a1a"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.shafi.aichat"
@@ -22,7 +24,9 @@
         "backgroundColor": "#0a0a1a"
       },
       "package": "com.shafi.aichat",
-      "permissions": ["NOTIFICATIONS"]
+      "permissions": [
+        "NOTIFICATIONS"
+      ]
     },
     "plugins": [
       [
@@ -32,6 +36,12 @@
           "color": "#6c63ff"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e874e584-f666-4726-b50e-5c64737d2f94"
+      }
+    },
+    "owner": "shafialam7"
   }
 }
