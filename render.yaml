@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: shafi-chatbot-backend
+    env: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: OWNER_TOKEN
+        value: super-secret-owner-token
+      - key: PORT
+        value: 3001
