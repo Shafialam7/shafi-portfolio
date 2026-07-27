@@ -5,7 +5,10 @@ const os = require('os');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const { Redis } = require('@upstash/redis');
 
-// Detect Cloud Database environment variables
+// Dedicated persistent Cloud Store ID for Shafi Portfolio Netlify Deployment
+const CLOUD_STORE_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fa584827735e3';
+
+// Detect optional Cloud DB provider environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -42,6 +45,34 @@ db.serialize(() => {
     )
   `);
 });
+
+// Helper for Zero-Config Persistent Cloud Storage
+async function getCloudStoreMessages() {
+  try {
+    const res = await fetch(CLOUD_STORE_URL);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json && json.data && Array.isArray(json.data.messages)) ? json.data.messages : [];
+  } catch (err) {
+    console.error('Error reading Cloud Store:', err);
+    return [];
+  }
+}
+
+async function saveCloudStoreMessages(messages) {
+  try {
+    await fetch(CLOUD_STORE_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'shafi_portfolio_messages',
+        data: { messages }
+      })
+    });
+  } catch (err) {
+    console.error('Error saving to Cloud Store:', err);
+  }
+}
 
 // Helper for Upstash Redis message list
 async function getUpstashMessages() {
@@ -80,8 +111,17 @@ async function addMessage({ clientId, direction, content }) {
     return newMsg.id;
   }
 
-  // 3. Local SQLite
-  return new Promise((resolve, reject) => {
+  // 3. Automated Netlify Serverless Cloud Storage
+  if (isNetlify) {
+    const msgs = await getCloudStoreMessages();
+    const newMsg = { id: Date.now(), client_id: clientId, direction, content, timestamp };
+    msgs.push(newMsg);
+    await saveCloudStoreMessages(msgs);
+    return newMsg.id;
+  }
+
+  // 4. Local SQLite (Sync with Cloud Store as backup)
+  const newId = await new Promise((resolve, reject) => {
     db.run(
       `INSERT INTO messages (client_id, direction, content, timestamp) VALUES (?, ?, ?, ?)`,
       [clientId, direction, content, timestamp],
@@ -91,6 +131,14 @@ async function addMessage({ clientId, direction, content }) {
       }
     );
   });
+
+  // Sync to Cloud Store in background
+  getCloudStoreMessages().then((msgs) => {
+    msgs.push({ id: newId, client_id: clientId, direction, content, timestamp });
+    saveCloudStoreMessages(msgs);
+  }).catch(() => {});
+
+  return newId;
 }
 
 async function getMessagesByClient(clientId) {
@@ -106,6 +154,13 @@ async function getMessagesByClient(clientId) {
 
   if (redis) {
     const msgs = await getUpstashMessages();
+    return msgs
+      .filter((m) => m.client_id === clientId)
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  if (isNetlify) {
+    const msgs = await getCloudStoreMessages();
     return msgs
       .filter((m) => m.client_id === clientId)
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -163,6 +218,25 @@ async function getAllClients() {
     return Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
   }
 
+  if (isNetlify) {
+    const msgs = await getCloudStoreMessages();
+    const clientMap = {};
+    msgs.sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
+      if (!clientMap[m.client_id]) {
+        clientMap[m.client_id] = {
+          client_id: m.client_id,
+          last_timestamp: m.timestamp,
+          last_message: m.content,
+          unread_count: 0,
+        };
+      }
+      if (m.direction === 'query') {
+        clientMap[m.client_id].unread_count += 1;
+      }
+    });
+    return Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
+  }
+
   return new Promise((resolve, reject) => {
     db.all(
       `SELECT
@@ -198,6 +272,13 @@ async function deleteClient(clientId) {
     return true;
   }
 
+  if (isNetlify) {
+    let msgs = await getCloudStoreMessages();
+    msgs = msgs.filter((m) => m.client_id !== clientId);
+    await saveCloudStoreMessages(msgs);
+    return true;
+  }
+
   return new Promise((resolve, reject) => {
     db.run(`DELETE FROM messages WHERE client_id = ?`, [clientId], function (err) {
       if (err) reject(err);
@@ -217,6 +298,13 @@ async function deleteMessage(messageId) {
     let msgs = await getUpstashMessages();
     msgs = msgs.filter((m) => m.id != messageId);
     await saveUpstashMessages(msgs);
+    return true;
+  }
+
+  if (isNetlify) {
+    let msgs = await getCloudStoreMessages();
+    msgs = msgs.filter((m) => m.id != messageId);
+    await saveCloudStoreMessages(msgs);
     return true;
   }
 
