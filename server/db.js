@@ -3,15 +3,17 @@ const path = require('path');
 const os = require('os');
 const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
 const { Redis } = require('@upstash/redis');
+let getStore = null;
+try {
+  getStore = require('@netlify/blobs').getStore;
+} catch (e) {}
 
 let sqlite3 = null;
 try {
   sqlite3 = require('sqlite3').verbose();
-} catch (e) {
-  console.log('ℹ️ Running in Serverless mode without native sqlite3 binary');
-}
+} catch (e) {}
 
-// Dedicated persistent Cloud Store URL for Netlify & Production Deployment
+// Dedicated persistent Cloud Store URL for Production Deployment
 const CLOUD_STORE_URL = 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fa584827735e3';
 
 // Detect Cloud DB provider environment variables if configured
@@ -48,6 +50,28 @@ if (sqlite3) {
       )
     `);
   });
+}
+
+// Helper for Netlify Blobs Native Persistent Store
+async function getNetlifyBlobMessages() {
+  if (!getStore) return null;
+  try {
+    const store = getStore('portfolio_chatbot');
+    const data = await store.get('messages', { type: 'json' });
+    return Array.isArray(data) ? data.filter(m => m && m.client_id) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function saveNetlifyBlobMessages(messages) {
+  if (!getStore) return;
+  try {
+    const store = getStore('portfolio_chatbot');
+    await store.setJSON('messages', messages.filter(m => m && m.client_id));
+  } catch (err) {
+    console.error('Error saving Netlify Blob:', err);
+  }
 }
 
 // Helper for Persistent Cloud Storage
@@ -97,6 +121,7 @@ async function saveUpstashMessages(msgs) {
 // Unified Database Interface
 async function addMessage({ clientId, direction, content }) {
   const timestamp = Date.now();
+  const newMsg = { id: Date.now(), client_id: clientId, direction, content, timestamp };
 
   // 1. Supabase Cloud DB
   if (supabase) {
@@ -111,15 +136,23 @@ async function addMessage({ clientId, direction, content }) {
   // 2. Upstash Redis Cloud DB
   if (redis) {
     const msgs = await getUpstashMessages();
-    const newMsg = { id: Date.now(), client_id: clientId, direction, content, timestamp };
     msgs.push(newMsg);
     await saveUpstashMessages(msgs);
     return newMsg.id;
   }
 
-  // 3. Persistent Cloud Store (Active for Netlify Functions)
+  // 3. Netlify Blobs Native Persistent Store
+  const blobMsgs = await getNetlifyBlobMessages();
+  if (blobMsgs !== null) {
+    blobMsgs.push(newMsg);
+    await saveNetlifyBlobMessages(blobMsgs);
+    // Sync to Cloud Store as backup
+    saveCloudStoreMessages(blobMsgs).catch(() => {});
+    return newMsg.id;
+  }
+
+  // 4. Persistent Cloud Store
   const msgs = await getCloudStoreMessages();
-  const newMsg = { id: Date.now(), client_id: clientId, direction, content, timestamp };
   msgs.push(newMsg);
   await saveCloudStoreMessages(msgs);
 
@@ -153,7 +186,13 @@ async function getMessagesByClient(clientId) {
       .sort((a, b) => a.timestamp - b.timestamp);
   }
 
-  // Always check Persistent Cloud Store
+  const blobMsgs = await getNetlifyBlobMessages();
+  if (blobMsgs !== null && blobMsgs.length > 0) {
+    return blobMsgs
+      .filter((m) => m && m.client_id === clientId)
+      .sort((a, b) => a.timestamp - b.timestamp);
+  }
+
   const msgs = await getCloudStoreMessages();
   if (msgs && msgs.length > 0) {
     return msgs
@@ -201,6 +240,26 @@ async function getAllClients() {
     const msgs = await getUpstashMessages();
     const clientMap = {};
     msgs.filter(m => m && m.client_id).sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
+      if (!clientMap[m.client_id]) {
+        clientMap[m.client_id] = {
+          client_id: m.client_id,
+          last_timestamp: m.timestamp,
+          last_message: m.content,
+          unread_count: 0,
+        };
+      }
+      if (m.direction === 'query') {
+        clientMap[m.client_id].unread_count += 1;
+      }
+    });
+    return Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
+  }
+
+  // Check Netlify Blobs
+  const blobMsgs = await getNetlifyBlobMessages();
+  if (blobMsgs !== null && blobMsgs.length > 0) {
+    const clientMap = {};
+    blobMsgs.filter(m => m && m.client_id).sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
       if (!clientMap[m.client_id]) {
         clientMap[m.client_id] = {
           client_id: m.client_id,
@@ -274,6 +333,12 @@ async function deleteClient(clientId) {
     return true;
   }
 
+  const blobMsgs = await getNetlifyBlobMessages();
+  if (blobMsgs !== null) {
+    const updated = blobMsgs.filter((m) => m && m.client_id !== clientId);
+    await saveNetlifyBlobMessages(updated);
+  }
+
   let msgs = await getCloudStoreMessages();
   msgs = msgs.filter((m) => m && m.client_id !== clientId);
   await saveCloudStoreMessages(msgs);
@@ -294,6 +359,12 @@ async function deleteMessage(messageId) {
     msgs = msgs.filter((m) => m && m.id != messageId);
     await saveUpstashMessages(msgs);
     return true;
+  }
+
+  const blobMsgs = await getNetlifyBlobMessages();
+  if (blobMsgs !== null) {
+    const updated = blobMsgs.filter((m) => m && m.id != messageId);
+    await saveNetlifyBlobMessages(updated);
   }
 
   let msgs = await getCloudStoreMessages();
