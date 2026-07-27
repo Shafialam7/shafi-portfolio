@@ -13,9 +13,10 @@ app.use(cors({
 
 app.use(express.json());
 
-// Mount API routes for Netlify Functions serverless handler
+// Mount API routes for all Netlify Functions path variants
 app.use('/.netlify/functions/api', routes);
 app.use('/api', routes);
+app.use('/', routes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', environment: 'netlify-serverless' });
