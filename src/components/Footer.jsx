@@ -64,6 +64,7 @@ export default function Footer() {
               <li><a href="#projects" className="hover:text-purple-600 transition-colors">Featured Projects</a></li>
               <li><a href="#services" className="hover:text-purple-600 transition-colors">Services API</a></li>
               <li><a href="#contact" className="hover:text-purple-600 transition-colors">Contact Me</a></li>
+              <li><a href="/admin" target="_blank" rel="noopener noreferrer" className="text-purple-600 font-bold hover:underline flex items-center gap-1"><span>⚡ Owner Admin Panel</span></a></li>
             </ul>
           </div>
 

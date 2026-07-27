@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Menu, X, Phone, Mail, Command, Sparkles } from 'lucide-react';
+import { Menu, X, Phone, Mail, Command, Sparkles, ShieldCheck } from 'lucide-react';
 import { Github } from './BrandIcons';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -85,8 +85,19 @@ export default function Navbar({ onOpenPalette }) {
           })}
         </div>
 
-        {/* Right: Command Palette Launcher */}
+        {/* Right: Command Palette Launcher & Admin Panel Button */}
         <div className="flex items-center gap-2">
+          <a
+            href="/admin"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-purple-600 text-white font-mono text-[11px] font-bold transition-all border border-slate-800 shadow-sm cursor-pointer"
+            title="Open Owner Admin Dashboard"
+          >
+            <ShieldCheck size={12} className="text-cyan-400" />
+            <span>Admin</span>
+          </a>
+
           <button
             onClick={onOpenPalette}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-700 font-mono text-[11px] font-bold border border-purple-200 transition-colors cursor-pointer"
