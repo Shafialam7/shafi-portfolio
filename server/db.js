@@ -56,7 +56,8 @@ async function getCloudStoreMessages() {
     const res = await fetch(CLOUD_STORE_URL);
     if (!res.ok) return [];
     const json = await res.json();
-    return (json && json.data && Array.isArray(json.data.messages)) ? json.data.messages : [];
+    const list = (json && json.data && Array.isArray(json.data.messages)) ? json.data.messages : [];
+    return list.filter(m => m && m.client_id && m.content);
   } catch (err) {
     console.error('Error reading Cloud Store:', err);
     return [];
@@ -70,7 +71,7 @@ async function saveCloudStoreMessages(messages) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'shafi_portfolio_messages',
-        data: { messages }
+        data: { messages: messages.filter(m => m && m.client_id) }
       })
     });
   } catch (err) {
@@ -83,7 +84,8 @@ async function getUpstashMessages() {
   if (!redis) return [];
   const raw = await redis.get('portfolio_messages');
   if (!raw) return [];
-  return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  return Array.isArray(list) ? list.filter(m => m && m.client_id) : [];
 }
 
 async function saveUpstashMessages(msgs) {
@@ -147,7 +149,7 @@ async function getMessagesByClient(clientId) {
   if (redis) {
     const msgs = await getUpstashMessages();
     return msgs
-      .filter((m) => m.client_id === clientId)
+      .filter((m) => m && m.client_id === clientId)
       .sort((a, b) => a.timestamp - b.timestamp);
   }
 
@@ -155,7 +157,7 @@ async function getMessagesByClient(clientId) {
   const msgs = await getCloudStoreMessages();
   if (msgs && msgs.length > 0) {
     return msgs
-      .filter((m) => m.client_id === clientId)
+      .filter((m) => m && m.client_id === clientId)
       .sort((a, b) => a.timestamp - b.timestamp);
   }
 
@@ -179,7 +181,7 @@ async function getAllClients() {
     if (error) throw error;
 
     const clientMap = {};
-    (data || []).forEach((m) => {
+    (data || []).filter(m => m && m.client_id).forEach((m) => {
       if (!clientMap[m.client_id]) {
         clientMap[m.client_id] = {
           client_id: m.client_id,
@@ -198,7 +200,7 @@ async function getAllClients() {
   if (redis) {
     const msgs = await getUpstashMessages();
     const clientMap = {};
-    msgs.sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
+    msgs.filter(m => m && m.client_id).sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
       if (!clientMap[m.client_id]) {
         clientMap[m.client_id] = {
           client_id: m.client_id,
@@ -216,23 +218,23 @@ async function getAllClients() {
 
   // Fetch from Persistent Cloud Store
   const msgs = await getCloudStoreMessages();
-  if (msgs && msgs.length > 0) {
-    const clientMap = {};
-    msgs.sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
-      if (!clientMap[m.client_id]) {
-        clientMap[m.client_id] = {
-          client_id: m.client_id,
-          last_timestamp: m.timestamp,
-          last_message: m.content,
-          unread_count: 0,
-        };
-      }
-      if (m.direction === 'query') {
-        clientMap[m.client_id].unread_count += 1;
-      }
-    });
-    return Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
-  }
+  const clientMap = {};
+  msgs.filter(m => m && m.client_id).sort((a, b) => b.timestamp - a.timestamp).forEach((m) => {
+    if (!clientMap[m.client_id]) {
+      clientMap[m.client_id] = {
+        client_id: m.client_id,
+        last_timestamp: m.timestamp,
+        last_message: m.content,
+        unread_count: 0,
+      };
+    }
+    if (m.direction === 'query') {
+      clientMap[m.client_id].unread_count += 1;
+    }
+  });
+
+  const list = Object.values(clientMap).sort((a, b) => b.last_timestamp - a.last_timestamp);
+  if (list.length > 0) return list;
 
   if (db) {
     return new Promise((resolve) => {
@@ -267,13 +269,13 @@ async function deleteClient(clientId) {
 
   if (redis) {
     let msgs = await getUpstashMessages();
-    msgs = msgs.filter((m) => m.client_id !== clientId);
+    msgs = msgs.filter((m) => m && m.client_id !== clientId);
     await saveUpstashMessages(msgs);
     return true;
   }
 
   let msgs = await getCloudStoreMessages();
-  msgs = msgs.filter((m) => m.client_id !== clientId);
+  msgs = msgs.filter((m) => m && m.client_id !== clientId);
   await saveCloudStoreMessages(msgs);
 
   if (db) db.run(`DELETE FROM messages WHERE client_id = ?`, [clientId], () => {});
@@ -289,13 +291,13 @@ async function deleteMessage(messageId) {
 
   if (redis) {
     let msgs = await getUpstashMessages();
-    msgs = msgs.filter((m) => m.id != messageId);
+    msgs = msgs.filter((m) => m && m.id != messageId);
     await saveUpstashMessages(msgs);
     return true;
   }
 
   let msgs = await getCloudStoreMessages();
-  msgs = msgs.filter((m) => m.id != messageId);
+  msgs = msgs.filter((m) => m && m.id != messageId);
   await saveCloudStoreMessages(msgs);
 
   if (db) db.run(`DELETE FROM messages WHERE id = ?`, [messageId], () => {});
